@@ -1,58 +1,19 @@
 version: '3.8'
-
 services:
-  app:
-    container_name: express-app
-    build:
-      context: .
-      dockerfile: ${DOCKERFILE:-Dockerfile} # Use the production Dockerfile by default.
-    ports:
-      - '8080:8080'
-    env_file:
-      - .env
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=${NODE_ENV:-development}
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - app-network
-
-  postgres:
+  db:
     image: postgres:15
-    container_name: postgres-db
-    restart: always
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=secret
-      - POSTGRES_DB=express_boilerplate
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: orderdb
     ports:
-      - '5432:5432'
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - app-network
-
-  redis:
-    image: redis:7-alpine
-    container_name: redis-cache
-    restart: always
+      - "5432:5432"
+  app:
+    build: .
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@db:5432/orderdb?schema=public"
+      JWT_SECRET: "supersecret"
     ports:
-      - '6379:6379'
-    volumes:
-      - redis_data:/data
-    networks:
-      - app-network
-
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-
-networks:
-  app-network:
-    driver: bridge
+      - "8000:8000"

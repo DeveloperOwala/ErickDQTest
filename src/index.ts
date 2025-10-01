@@ -1,55 +1,51 @@
-import { Server } from 'http';
-import app from '@/app';
-import prisma from '@/client';
-import config from '@/config/config';
-import logger from '@/config/logger';
+import express from 'express';
+import dotenv from 'dotenv';
+dotenv.config();
+import cors from 'cors';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yamljs';
+import authRoutes from './routes/auth';
+import customerRoutes from './routes/customers';
+import orderRoutes from './routes/orders';
+import { initPrisma } from './prisma';
 
-let server: Server;
+const app = express();
 
-// Connect to Prisma
-prisma
-  .$connect()
+// ✅ Enable CORS globally
+app.use(cors({
+  origin: '*', // In production, set your frontend URL
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization']
+}));
+
+// ✅ Handle preflight requests
+app.options('*', cors());
+
+// ✅ Parse JSON bodies
+app.use(express.json());
+
+// ✅ Load Swagger YAML
+const swaggerDoc = YAML.load('./openapi.yaml');
+
+// ✅ Swagger UI
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc, {
+  swaggerOptions: {
+    persistAuthorization: true
+  }
+}));
+
+// ✅ API routes
+app.use('/v1/auth', authRoutes);
+app.use('/v1/customers', customerRoutes);
+app.use('/v1/orders', orderRoutes);
+
+// ✅ Start server
+const port = process.env.PORT || 8000;
+initPrisma()
   .then(() => {
-    logger.info('🔌 Connected to SQL Database');
-    if (config.redisUrl) {
-      logger.info('⌛️ Connected to Redis');
-    }
-    server = app.listen(config.port, () => {
-      logger.info(`🚀 Running in ${config.env} mode on port ${config.port}`);
-    });
+    app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
   })
-  .catch((error) => {
-    logger.error(error);
-    process.exit(1);
+  .catch(err => {
+    console.error('Prisma init error', err);
+    app.listen(port, () => console.log(`Server running (no DB) on http://localhost:${port}`));
   });
-
-const exitHandler = async () => {
-  if (server) {
-    server.close(async () => {
-      logger.info('Server closed');
-      await prisma.$disconnect(); // gracefully close DB connection
-      process.exit(1);
-    });
-  } else {
-    await prisma.$disconnect(); // gracefully close DB connection
-    process.exit(1);
-  }
-};
-
-const unexpectedErrorHandler = (error: unknown) => {
-  logger.error(error);
-  exitHandler();
-};
-
-process.on('uncaughtException', unexpectedErrorHandler);
-process.on('unhandledRejection', unexpectedErrorHandler);
-
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received');
-  if (server) {
-    server.close(async () => {
-      await prisma.$disconnect();
-      logger.info('Server closed and connections disconnected');
-    });
-  }
-});
