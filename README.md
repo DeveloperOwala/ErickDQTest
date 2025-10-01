@@ -1,5 +1,5 @@
-# DQ Order Management API (Scaffold)
-Backend Developer Assessment scaffold:
+# DQ Order Management API 
+DQ Backend Developer Assessment :
 - Node.js + TypeScript + Express
 - Prisma (Postgres)
 - JWT auth
